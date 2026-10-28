@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="theme-color" content="#0f766e">
+  <title>PostureGuard AI</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body data-screen="home">
+
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo" aria-hidden="true">PG</span>
+      <div>
+        <h1>PostureGuard AI</h1>
+        <p class="subtitle">Real-Time Dental Student Posture Monitoring</p>
+      </div>
+    </div>
+    <span class="pill pill-model loading" id="modelPill"><span class="spinner small"></span><span id="modelPillText">AI model: loading…</span></span>
+  </header>
+
+  <main>
+
+    <!-- ============ A. HOME / SETUP ============ -->
+    <section id="home" class="screen">
+      <div class="card">
+        <h2>Camera setup</h2>
+        <ol class="steps">
+          <li>Put the iPad on a stable stand about <strong>2 m (6 ft)</strong> from the student.</li>
+          <li>Point it at the student's <strong>side</strong> (a true side view, not front-on).</li>
+          <li>Keep the <strong>ear, shoulder and hip</strong> on the camera-facing side in view, in good light.</li>
+          <li>Tap <strong>Start Monitoring</strong> and choose <strong>Allow</strong> when Safari asks for the camera.</li>
+        </ol>
+
+        <div class="error-card" id="errorCard" role="alert" hidden>
+          <h3 id="errorTitle"></h3>
+          <p id="errorBody"></p>
+          <div class="row">
+            <button class="btn secondary" id="retryModelBtn" hidden>Retry loading AI model</button>
+          </div>
+        </div>
+
+        <div class="row">
+          <button class="btn primary big" id="startBtn">Start Monitoring</button>
+          <button class="btn secondary big" id="homeSettingsBtn">Settings</button>
+        </div>
+      </div>
+
+      <div class="card privacy">
+        <h2>Camera &amp; privacy</h2>
+        <p>The camera is used <strong>only for live posture analysis</strong>. All processing happens on this device.
+           <strong>Raw video and images are not stored or uploaded</strong> by this application. The camera is
+           requested only after you tap Start Monitoring and is switched off when you stop.</p>
+      </div>
+
+      <div class="card disclaimer">
+        <h2>Please note</h2>
+        <p>This is an <strong>educational prototype</strong>, not a clinically validated medical device. Angles are 2D
+           estimates from a single camera. The 35° threshold is a <strong>configurable prototype value that requires
+           ergonomic validation</strong>; it is not an established medical diagnostic cut-off.</p>
+      </div>
+    </section>
+
+    <!-- ============ B. LIVE MONITORING ============ -->
+    <section id="live" class="screen" hidden>
+      <div class="live-grid">
+
+        <div class="stage-col">
+          <div class="stage" id="stage">
+            <video id="video" playsinline muted autoplay></video>
+            <canvas id="overlay"></canvas>
+
+            <div class="stage-top">
+              <span class="pill active-pill" id="activePill"><span class="dot"></span><span id="activeText">AI processing active</span></span>
+            </div>
+
+            <div class="banner alert-banner" id="alertBanner" role="alert" hidden>
+              Poor Posture Detected — Please Adjust Your Position.
+            </div>
+            <div class="banner reposition-banner" id="repositionBanner" hidden></div>
+
+            <div class="stage-loading" id="stageLoading">
+              <span class="spinner"></span>
+              <span id="stageLoadingText">Starting camera and AI model…</span>
+              <button class="btn secondary" id="cancelStartBtn">Cancel</button>
+            </div>
+          </div>
+          <p class="tiny">Camera is used for live posture analysis only. Raw video is not stored or uploaded.</p>
+        </div>
+
+        <aside class="panel">
+          <div class="status-card" id="statusCard" data-state="idle">
+            <div class="label">Posture status</div>
+            <div class="status-value" id="statusValue">—</div>
+          </div>
+
+          <div class="metrics">
+            <div class="metric" id="neckMetric">
+              <div class="label">Estimated neck inclination</div>
+              <div class="value" id="neckValue">—</div>
+            </div>
+            <div class="metric">
+              <div class="label">Estimated trunk flexion</div>
+              <div class="value" id="trunkValue">—</div>
+            </div>
+          </div>
+
+          <div class="timer-card">
+            <div class="row between">
+              <span>Consecutive time above threshold</span>
+              <strong id="timerText">0.0 s</strong>
+            </div>
+            <div class="bar"><div id="timerBar"></div></div>
+            <p class="tiny" id="timerHint"></p>
+          </div>
+
+          <div class="mini-stats">
+            <div><span class="label">Monitoring time</span><strong id="liveElapsed">00:00</strong></div>
+            <div><span class="label">Alerts</span><strong id="liveAlerts">0</strong></div>
+            <div><span class="label">Time above threshold</span><strong id="liveAbove">0.0 s</strong></div>
+          </div>
+
+          <div class="controls">
+            <button class="btn primary" id="liveStartBtn" disabled>Start</button>
+            <button class="btn danger" id="stopBtn">Stop</button>
+            <button class="btn secondary" id="resetBtn">Reset</button>
+            <button class="btn secondary" id="switchCamBtn">Switch camera</button>
+            <button class="btn secondary" id="liveSettingsBtn">Settings</button>
+          </div>
+
+          <div class="alert-log">
+            <h3>Alert log</h3>
+            <ul id="alertLog"><li class="empty">No alerts yet.</li></ul>
+          </div>
+        </aside>
+      </div>
+    </section>
+
+    <!-- ============ C. SESSION SUMMARY ============ -->
+    <section id="summary" class="screen" hidden>
+      <div class="card">
+        <h2>Session summary</h2>
+        <p class="notice" id="summaryNotice" hidden></p>
+        <div class="stat-grid">
+          <div class="stat"><span class="label">Total monitoring duration</span><strong id="sumDuration">—</strong></div>
+          <div class="stat"><span class="label">Posture alerts</span><strong id="sumAlerts">—</strong></div>
+          <div class="stat"><span class="label">Time above threshold</span><strong id="sumAbove">—</strong></div>
+          <div class="stat"><span class="label">Average neck inclination (valid only)</span><strong id="sumAvgNeck">—</strong></div>
+          <div class="stat"><span class="label">Average trunk flexion (valid only)</span><strong id="sumAvgTrunk">—</strong></div>
+          <div class="stat"><span class="label">Maximum neck inclination</span><strong id="sumMaxNeck">—</strong></div>
+          <div class="stat"><span class="label">Frames with reliable detection</span><strong id="sumValid">—</strong></div>
+        </div>
+        <p class="tiny" id="sumSettings"></p>
+      </div>
+
+      <div class="card">
+        <h2>Posture over time</h2>
+        <canvas id="chart" class="chart" aria-label="Chart of neck inclination and trunk flexion over time"></canvas>
+        <div class="legend">
+          <span><i class="sw teal"></i>Neck inclination</span>
+          <span><i class="sw blue"></i>Trunk flexion</span>
+          <span><i class="sw red dashed"></i>Threshold</span>
+          <span><i class="sw red dot"></i>Alert</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Alerts</h2>
+        <table class="table">
+          <thead><tr><th>#</th><th>Elapsed</th><th>Clock time</th><th>Neck angle</th></tr></thead>
+          <tbody id="sumAlertRows"></tbody>
+        </table>
+      </div>
+
+      <div class="row sticky-actions">
+        <button class="btn primary big" id="newSessionBtn">Start New Session</button>
+        <button class="btn secondary big" id="exportBtn">Export CSV</button>
+      </div>
+      <p class="tiny">The CSV contains only numbers (statistics and angles). No camera images or video are saved or exported.</p>
+    </section>
+
+  </main>
+
+  <!-- ============ SETTINGS PANEL ============ -->
+  <div class="modal" id="settingsModal" hidden>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+      <h2 id="settingsTitle">Settings</h2>
+
+      <label class="field">
+        <span>Neck inclination threshold: <strong id="thrOut">35°</strong></span>
+        <input type="range" id="thrInput" min="15" max="60" step="1" value="35">
+      </label>
+
+      <label class="field">
+        <span>Required continuous duration: <strong id="durOut">5 s</strong></span>
+        <input type="range" id="durInput" min="1" max="20" step="1" value="5">
+      </label>
+      <p class="tiny">35° is a configurable prototype threshold that requires ergonomic validation. It is not an established medical diagnostic cut-off.</p>
+
+      <fieldset class="field">
+        <legend>Camera</legend>
+        <label class="radio"><input type="radio" name="camera" value="environment" checked> Rear camera</label>
+        <label class="radio"><input type="radio" name="camera" value="user"> Front camera</label>
+      </fieldset>
+
+      <label class="field toggle">
+        <input type="checkbox" id="soundInput">
+        <span>Sound alert (off by default)</span>
+      </label>
+
+      <button class="btn primary big" id="settingsCloseBtn">Done</button>
+    </div>
+  </div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
